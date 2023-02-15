@@ -45,7 +45,7 @@ class RemapContext {
 
 abstract class Remap<Def> {
     constructor(
-        protected readonly _def: Def,
+        public readonly _def: Def,
         public readonly type: string,
     ) {}
 }
@@ -61,7 +61,7 @@ export class RemapObject<Shape extends RemapObjectMap> extends Remap<{shape: Sha
     }
     
     public static create<Shape extends RemapObjectMap>(shape: Shape): RemapObject<Shape> {
-        return new RemapObject(shape);
+        return new RemapObject<Shape>(shape);
     }
 
     /**
@@ -73,12 +73,12 @@ export class RemapObject<Shape extends RemapObjectMap> extends Remap<{shape: Sha
         return new RemapKey<To, typeof this>(to, this);
     }
 
-    public safeMap<T extends object>(source: T): Result<RemapInfer<this, T>, RemapError> {
+    public safeMap<Input extends object>(source: Input): Result<RemapInfer<this, Input>, RemapError> {
         const {context, value} = this._map(source, new RemapContext());
         const issues = context.getIssues();
         if (issues.size > 0) return err(new RemapError());
 
-        return ok(value);
+        return ok(value as any);
     }
 
     public map<T extends object>(source: T): RemapInfer<this, T> {
@@ -88,11 +88,11 @@ export class RemapObject<Shape extends RemapObjectMap> extends Remap<{shape: Sha
         const issues = context.getIssues();
         if (issues.size > 0) throw new RemapError();
 
-        return value;
+        return value as any;
     }
 
     protected _map<T extends object>(source: T, context: RemapContext): {context: RemapContext, value: RemapInfer<RemapObject<Shape>, T>} {
-        const final: Partial<RemapInfer<typeof this, T>> = {};
+        const final: any = {};
 
         if (typeof source !== "object") {
             context.add(`expected object, received ${typeof source}`);
@@ -133,13 +133,13 @@ export class RemapObject<Shape extends RemapObjectMap> extends Remap<{shape: Sha
         }
 
         return {
-            value: final, context
+            value: final as any, context
         };
     }
 }
 
-export class RemapKey<To extends string, TOutput extends Remap<any>> extends Remap<{to: To, output: TOutput}> {
-    public static create<To extends string>(to: To): RemapKey<string, never> {
+export class RemapKey<To extends string, TOutput extends Remap<any> | undefined> extends Remap<{to: To, output: TOutput}> {
+    public static create<To extends string>(to: To): RemapKey<string, undefined> {
         return new RemapKey(to);
     }
 
@@ -147,7 +147,7 @@ export class RemapKey<To extends string, TOutput extends Remap<any>> extends Rem
         to: To,
         output?: TOutput
     ) {
-        super({to, output: output ?? undefined as never}, RemapType.Key);
+        super({to, output: output ?? undefined as TOutput}, RemapType.Key);
     }
 
     public get to(): To {
@@ -195,13 +195,41 @@ export class RemapEnum<
 }
 
 
+/**
+ * Shortcut to access the `Shape` of a `RemapObject<Shape>`.
+ */
+type ShapeOf<T extends RemapObject<any>> = T["_def"]["shape"];
+type GetIndex<T extends object, V> = {[P in keyof T]: T[P] extends V ? P : never }[keyof T]; // there may be a more efficient type, but this works for now.
+/**
+ * Returns source index of a given `RemapKey<P, any>`.
+ */
+type _Index<T extends RemapObject<any>, P extends string | symbol | number> = GetIndex<ShapeOf<T>, RemapKey<P & string, any>>;
+/**
+ * Omits all properties whose type is never for a cleaner end type.
+ */
+type OmitNever<T> = { [K in keyof T as T[K] extends never ? never : K]: T[K] }
+type CopyUnknown<T extends RemapObject<any>, Input extends object> = {
+    [P in Exclude<keyof Input, keyof ShapeOf<T>>]: Input[P];
+}
+type RemapObjects<T extends RemapObject<any>, Input extends object> = {
+    [P in Exclude<keyof ShapeOf<T>, keyof CopyUnknown<T, Input>>]: ShapeOf<T>[P] extends RemapObject<infer S> ? RemapInfer<RemapObject<S>, Input[P] & object> : never;
+}
 
-// **massive** TODO
-type RemapInfer<T extends RemapObject<any>, Source extends object> = Record<any, any>;
+type RemapKeys<T extends RemapObject<any>, Input extends object> = {
+    [P in (ShapeOf<T>[keyof ShapeOf<T>] extends RemapKey<infer U, any> ? U : never)]: _Index<T, P> extends keyof Input ? // check if source index exists on input, otherwise don't evaluate it
+        ShapeOf<T>[_Index<T, P>] extends RemapKey<P, infer O> ? 
+            O extends Remap<any> ?
+                O extends RemapObject<infer S> ? RemapInfer<RemapObject<S>, Input[_Index<T, P>] & object> : never
+            : Input[_Index<T, P>]
+        : never
+    : never;
+}
 
-
-
-
+type RemapInfer<T extends RemapObject<any>, Input extends object> = OmitNever<
+    CopyUnknown<T, Input> & 
+    RemapObjects<T, Input> &
+    RemapKeys<T, Input>
+>;
 
 
 
@@ -213,7 +241,7 @@ const rObject = <TShape extends RemapObjectMap>(shape: TShape) =>  RemapObject.c
  * Remap whatever is at this key to the new key.
  * @param to the key to map to.
  */
-const rTo = <To extends string>(to: To): RemapKey<To, never> => RemapKey.create<To>(to) as RemapKey<To, never>;
+const rTo = <To extends string>(to: To): RemapKey<To, undefined> => RemapKey.create<To>(to) as RemapKey<To, undefined>;
 /**
  * Remap enums. Specified enum arrays need to be of the same size.
  */
