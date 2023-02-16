@@ -1,6 +1,6 @@
 # Remap
 
-A [zod](https://github.com/colinhacks/zod)-inspired object remapping library with static type inference.
+A (work in progress) [Zod](https://github.com/colinhacks/zod)-inspired object remapping library with static type inference.
 
 ## Usage
 
@@ -28,4 +28,21 @@ const example = schema.map({
 //        testStatus: "Success"
 //    }
 //}
+```
+
+For type inference, simply use `r.infer<TSchema, TInput>`:
+
+```ts
+import { r } from "remap";
+
+const TestSchema = r.object({
+    test: r.to("tested"),
+});
+
+type Input = {
+    test: string,
+    unaffected: boolean
+}
+
+type Test = r.infer<typeof TestSchema, Input>; // { tested: string, unaffected: boolean }
 ```
