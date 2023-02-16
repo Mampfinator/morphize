@@ -1,0 +1,8 @@
+/src
+/node_modules
+/test
+/coverage
+.gitignore
+.gitattributes
+README.md
+tsconfig.json
