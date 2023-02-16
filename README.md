@@ -5,12 +5,12 @@ A (work in progress) [Zod](https://github.com/colinhacks/zod)-inspired object tr
 ## Usage
 
 ```ts
-import { r } from "morphize";
+import { m } from "morphize";
 
-const schema = r.object({
-    example: r.object({
-        foo: r.to("bar"),
-        test_status: r.enum([0, 1, 2], ["Success", "Pending", "Failed"]).to("testStatus")
+const schema = m.object({
+    example: m.object({
+        foo: m.to("bar"),
+        test_status: m.enum([0, 1, 2], ["Success", "Pending", "Failed"]).to("testStatus")
     }).to("somewhereElse"),
 });
 
@@ -30,13 +30,13 @@ const example = schema.map({
 //}
 ```
 
-For type inference, simply use `r.infer<TSchema, TInput>`:
+For type inference, simply use `m.infer<TSchema, TInput>`:
 
 ```ts
-import { r } from "morphize";
+import { m } from "morphize";
 
-const TestSchema = r.object({
-    test: r.to("tested"),
+const TestSchema = m.object({
+    test: m.to("tested"),
 });
 
 type Input = {
@@ -44,5 +44,5 @@ type Input = {
     unaffected: boolean
 }
 
-type Test = r.infer<typeof TestSchema, Input>; // { tested: string, unaffected: boolean }
+type Test = m.infer<typeof TestSchema, Input>; // { tested: string, unaffected: boolean }
 ```
