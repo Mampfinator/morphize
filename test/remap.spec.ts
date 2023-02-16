@@ -1,11 +1,11 @@
 import { expect } from "chai";
 import { expectType } from "tsd";
-import { r } from "../src";
+import { m } from "../src";
 
-describe("Remap Tests", () => {
+describe("Morph Tests", () => {
     it("remaps simple objects", () => {
-        const schema = r.object({
-            test: r.to("tested")
+        const schema = m.object({
+            test: m.to("tested")
         });
 
         const test = schema.map({ test: ":)" });
@@ -16,9 +16,9 @@ describe("Remap Tests", () => {
     });
 
     it("remaps nested objects", () => {
-        const schema = r.object({
-            test: r.object({
-                foo: r.to("bar"),
+        const schema = m.object({
+            test: m.object({
+                foo: m.to("bar"),
             }).to("tested")
         });
         const test = schema.map({test: {foo: "c:"}});
@@ -34,7 +34,7 @@ describe("Remap Tests", () => {
     });
 
     it("keeps unknown properties", () => {
-        const schema = r.object({});
+        const schema = m.object({});
         
         const test = schema.map({tested: "Indeed!"})
         const control = {tested: "Indeed!"};
@@ -47,11 +47,11 @@ describe("Remap Tests", () => {
         const from = [0, 1, 2] as const;
         const to = ["Tested", "Pending", "Failed"] as const;
 
-        const remap1 = r.enum(from, to);
+        const remap1 = m.enum(from, to);
         expect(remap1.map(1)).to.equal("Pending");
 
-        const remap2 = r.object({
-            test: r.enum(from, to).to("tested")
+        const remap2 = m.object({
+            test: m.enum(from, to).to("tested")
         });
         
         expect(remap2.map({
@@ -63,8 +63,8 @@ describe("Remap Tests", () => {
     });
 
     it("lists issues", () => {
-        const schema = r.object({
-            test: r.object({}).to("tested")
+        const schema = m.object({
+            test: m.object({}).to("tested")
         });
 
         const result = schema.safeMap({test: ":)"});

@@ -1,27 +1,27 @@
 import { err, ok, type Result } from "neverthrow";
-import { RemapError } from "./errors";
+import { MorphError } from "./errors";
 
 
-enum InternalRemapType {
+enum InternalMorphType {
     Object = "object",
     Key = "key",
     Enum = "enum",
 }
 
-export type RemapIssue = {
+export type MorphIssue = {
     path: string[];
     details: string;
 }
 
-export class RemapContext {
-    protected issues: Set<RemapIssue> = new Set();
+export class MorphContext {
+    protected issues: Set<MorphIssue> = new Set();
     protected path: string[] = [];
 
     public get isRoot(): boolean {
         return this.path.length == 0;
     }
 
-    public getIssues(): Set<RemapIssue> {
+    public getIssues(): Set<MorphIssue> {
         return new Set(this.issues);
     }
 
@@ -29,8 +29,8 @@ export class RemapContext {
         return [...this.path];
     }
 
-    public at(key: string): RemapContext {
-        const context = new RemapContext();
+    public at(key: string): MorphContext {
+        const context = new MorphContext();
         context.issues = this.issues;
         context.path = [...this.path, key];
 
@@ -43,25 +43,25 @@ export class RemapContext {
 }
 
 
-export abstract class Remap<Def> {
+export abstract class Morpher<Def> {
     constructor(
         public readonly _def: Def,
         public readonly type: string,
     ) {}
 }
 
-type RemapObjectMap = {
-    [key: string]: Remap<any>;
+type MorphObjectMap = {
+    [key: string]: Morpher<any>;
 }
-export class RemapObject<Shape extends RemapObjectMap> extends Remap<{shape: Shape}> {
+export class MorphObject<Shape extends MorphObjectMap> extends Morpher<{shape: Shape}> {
     constructor(
         shape: Shape
     ) {
-        super({shape}, InternalRemapType.Object);
+        super({shape}, InternalMorphType.Object);
     }
     
-    public static create<Shape extends RemapObjectMap>(shape: Shape): RemapObject<Shape> {
-        return new RemapObject<Shape>(shape);
+    public static create<Shape extends MorphObjectMap>(shape: Shape): MorphObject<Shape> {
+        return new MorphObject<Shape>(shape);
     }
 
     /**
@@ -69,28 +69,28 @@ export class RemapObject<Shape extends RemapObjectMap> extends Remap<{shape: Sha
      * @param to the key to map to.
      * @returns 
      */
-    public to<To extends string>(to: To): RemapKey<To, this> {
-        return new RemapKey<To, typeof this>(to, this);
+    public to<To extends string>(to: To): MorphKey<To, this> {
+        return new MorphKey<To, typeof this>(to, this);
     }
 
-    public safeMap<Input extends object>(source: Input): Result<TypeOf<this, Input>, RemapError> {
-        const {context, value} = this._map(source, new RemapContext());
+    public safeMap<Input extends object>(source: Input): Result<TypeOf<this, Input>, MorphError> {
+        const {context, value} = this._map(source, new MorphContext());
         const issues = context.getIssues();
-        if (issues.size > 0) return err(RemapError.from(context));
+        if (issues.size > 0) return err(MorphError.from(context));
 
         return ok(value as any);
     }
 
     public map<T extends object>(source: T): TypeOf<this, T> {
-        const {context, value} = this._map(source, new RemapContext());
+        const {context, value} = this._map(source, new MorphContext());
         
         const issues = context.getIssues();
-        if (issues.size > 0) throw RemapError.from(context);
+        if (issues.size > 0) throw MorphError.from(context);
 
         return value as any;
     }
 
-    protected _map<T extends object>(source: T, context: RemapContext): {context: RemapContext, value: TypeOf<RemapObject<Shape>, T>} {
+    protected _map<T extends object>(source: T, context: MorphContext): {context: MorphContext, value: TypeOf<MorphObject<Shape>, T>} {
         const final: any = {};
 
         if (typeof source !== "object") {
@@ -106,28 +106,28 @@ export class RemapObject<Shape extends RemapObjectMap> extends Remap<{shape: Sha
 
             const remap = this._def.shape[key];
             switch (remap.type) {
-                case InternalRemapType.Object: {
-                    const {value: newValue} = (remap as RemapObject<any>)._map(value, context.at(key));
+                case InternalMorphType.Object: {
+                    const {value: newValue} = (remap as MorphObject<any>)._map(value, context.at(key));
                     value[key] = newValue;
                     break;
                 }
 
-                case InternalRemapType.Key: {
-                    const newKey = (remap as RemapKey<string, any>).to;
-                    const output = (remap as RemapKey<string, any>).output;
+                case InternalMorphType.Key: {
+                    const newKey = (remap as MorphKey<string, any>).to;
+                    const output = (remap as MorphKey<string, any>).output;
                     
                     // there has to be a better way of doing this. But it's fine for now.
-                    const newValue = output instanceof Remap ? (
-                        output instanceof RemapObject ? output._map(value, context.at(key)).value :
-                        output instanceof RemapEnum ? output.map(value) : (() => {throw new Error(`Internal error! Unexpected Remap type at ${context.at(key).getPath().join(".")}`)})()
+                    const newValue = output instanceof Morpher ? (
+                        output instanceof MorphObject ? output._map(value, context.at(key)).value :
+                        output instanceof MorphEnum ? output.map(value) : (() => {throw new Error(`Internal error! Unexpected Morph type at ${context.at(key).getPath().join(".")}`)})()
                     ) : value; 
 
                     final[newKey] = newValue;
                     break;
                 }
 
-                case InternalRemapType.Enum: {
-                    final[key] =  (remap as RemapEnum<any, any>).map(value);
+                case InternalMorphType.Enum: {
+                    final[key] =  (remap as MorphEnum<any, any>).map(value);
                 }
             }
         }
@@ -138,16 +138,16 @@ export class RemapObject<Shape extends RemapObjectMap> extends Remap<{shape: Sha
     }
 }
 
-export class RemapKey<To extends string, TOutput extends Remap<any> | undefined> extends Remap<{to: To, output: TOutput}> {
-    public static create<To extends string>(to: To): RemapKey<string, undefined> {
-        return new RemapKey(to);
+export class MorphKey<To extends string, TOutput extends Morpher<any> | undefined> extends Morpher<{to: To, output: TOutput}> {
+    public static create<To extends string>(to: To): MorphKey<string, undefined> {
+        return new MorphKey(to);
     }
 
     constructor(
         to: To,
         output?: TOutput
     ) {
-        super({to, output: output ?? undefined as TOutput}, InternalRemapType.Key);
+        super({to, output: output ?? undefined as TOutput}, InternalMorphType.Key);
     }
 
     public get to(): To {
@@ -159,31 +159,31 @@ export class RemapKey<To extends string, TOutput extends Remap<any> | undefined>
     }
 }
 
-export class RemapEnum<
+export class MorphEnum<
     Input extends readonly [string | number, ...(string | number)[]], 
     Output extends readonly [string, ...string[]]
-> extends Remap<{from: Input, to: Output}> {
+> extends Morpher<{from: Input, to: Output}> {
     public static create<
         Input extends readonly [string | number, ...(string | number)[]], 
         Output extends readonly [string, ...string[]]
-    >(from: Input, to: Output): RemapEnum<Input, Output> {
-        return new RemapEnum<Input, Output>(from, to);
+    >(from: Input, to: Output): MorphEnum<Input, Output> {
+        return new MorphEnum<Input, Output>(from, to);
     }
 
     constructor(
         from: Input,
         to: Output
     ) {
-        super({from, to}, InternalRemapType.Enum);
+        super({from, to}, InternalMorphType.Enum);
     }
 
     /**
-     * Remap this enum to another key.
+     * Morph this enum to another key.
      * @param to the key to map to.
      * @returns 
      */
-    public to<To extends string>(to: To): RemapKey<To, this> {
-        return new RemapKey(to, this);
+    public to<To extends string>(to: To): MorphKey<To, this> {
+        return new MorphKey(to, this);
     }
 
     public map(input: any): any {
@@ -194,56 +194,56 @@ export class RemapEnum<
 
 
 /**
- * Shortcut to access the `Shape` of a `RemapObject<Shape>`.
+ * Shortcut to access the `Shape` of a `MorphObject<Shape>`.
  */
-type ShapeOf<T extends RemapObject<any>> = T["_def"]["shape"];
+type ShapeOf<T extends MorphObject<any>> = T["_def"]["shape"];
 type GetIndex<T extends object, V> = {[P in keyof T]: T[P] extends V ? P : never }[keyof T]; // there may be a more efficient type, but this works for now.
 /**
- * Returns source index of a given `RemapKey<P, any>`.
+ * Returns source index of a given `MorphKey<P, any>`.
  */
-type _Index<T extends RemapObject<any>, P extends string | symbol | number> = GetIndex<ShapeOf<T>, RemapKey<P & string, any>>;
+type _Index<T extends MorphObject<any>, P extends string | symbol | number> = GetIndex<ShapeOf<T>, MorphKey<P & string, any>>;
 /**
  * Omits all properties whose type is never for a cleaner end type.
  */
 type OmitNever<T> = { [K in keyof T as T[K] extends never ? never : K]: T[K] }
-type CopyUnknown<T extends RemapObject<any>, Input extends object> = {
+type CopyUnknown<T extends MorphObject<any>, Input extends object> = {
     [P in Exclude<keyof Input, keyof ShapeOf<T>>]: Input[P];
 }
-type RemapObjects<T extends RemapObject<any>, Input extends object> = {
-    [P in Exclude<keyof ShapeOf<T>, keyof CopyUnknown<T, Input>>]: ShapeOf<T>[P] extends RemapObject<infer S> ? TypeOf<RemapObject<S>, Input[P] & object> : never;
+type MorphObjects<T extends MorphObject<any>, Input extends object> = {
+    [P in Exclude<keyof ShapeOf<T>, keyof CopyUnknown<T, Input>>]: ShapeOf<T>[P] extends MorphObject<infer S> ? TypeOf<MorphObject<S>, Input[P] & object> : never;
 }
 
-type RemapKeys<T extends RemapObject<any>, Input extends object> = {
-    [P in (ShapeOf<T>[keyof ShapeOf<T>] extends RemapKey<infer U, any> ? U : never)]: _Index<T, P> extends keyof Input ? // check if source index exists on input, otherwise don't evaluate it
-        ShapeOf<T>[_Index<T, P>] extends RemapKey<P, infer O> ? 
-            O extends Remap<any> ?
-                O extends RemapObject<infer S> ? TypeOf<RemapObject<S>, Input[_Index<T, P>] & object> : never
+type MorphKeys<T extends MorphObject<any>, Input extends object> = {
+    [P in (ShapeOf<T>[keyof ShapeOf<T>] extends MorphKey<infer U, any> ? U : never)]: _Index<T, P> extends keyof Input ? // check if source index exists on input, otherwise don't evaluate it
+        ShapeOf<T>[_Index<T, P>] extends MorphKey<P, infer O> ? 
+            O extends Morpher<any> ?
+                O extends MorphObject<infer S> ? TypeOf<MorphObject<S>, Input[_Index<T, P>] & object> : never
             : Input[_Index<T, P>]
         : never
     : never;
 }
 
-type TypeOf<T extends RemapObject<any>, Input extends object> = OmitNever<
+type TypeOf<T extends MorphObject<any>, Input extends object> = OmitNever<
     CopyUnknown<T, Input> & 
-    RemapObjects<T, Input> &
-    RemapKeys<T, Input>
+    MorphObjects<T, Input> &
+    MorphKeys<T, Input>
 >;
 
 
 
 /**
- * Remap an object. This is also the root of a remap schema.
+ * Morph an object. This is also the root of a remap schema.
  */
-const rObject = <TShape extends RemapObjectMap>(shape: TShape) =>  RemapObject.create<TShape>(shape);
+const rObject = <TShape extends MorphObjectMap>(shape: TShape) =>  MorphObject.create<TShape>(shape);
 /**
- * Remap whatever is at this key to the new key.
+ * Morph whatever is at this key to the new key.
  * @param to the key to map to.
  */
-const rTo = <To extends string>(to: To): RemapKey<To, undefined> => RemapKey.create<To>(to) as RemapKey<To, undefined>;
+const rTo = <To extends string>(to: To): MorphKey<To, undefined> => MorphKey.create<To>(to) as MorphKey<To, undefined>;
 /**
- * Remap enums. Specified enum arrays need to be of the same size.
+ * Morph enums. Specified enum arrays need to be of the same size.
  */
-const rEnum = <T extends string | number, From extends readonly [T, ...T[]], U extends string, To extends readonly [U, ...U[]]>(from: From, to: To) => RemapEnum.create<From, To>(from, to);
+const rEnum = <T extends string | number, From extends readonly [T, ...T[]], U extends string, To extends readonly [U, ...U[]]>(from: From, to: To) => MorphEnum.create<From, To>(from, to);
 
 
 export {

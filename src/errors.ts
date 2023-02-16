@@ -1,15 +1,15 @@
-import { RemapContext, RemapIssue } from ".";
+import { MorphContext, MorphIssue } from ".";
 
-export class RemapError {
-    public readonly issues: RemapIssue[] = [];
+export class MorphError {
+    public readonly issues: MorphIssue[] = [];
     
-    public static from(context: RemapContext) {
+    public static from(context: MorphContext) {
         return new this(...context.getIssues());
     }
 
-    constructor(issues: Iterable<RemapIssue>)
-    constructor(...issues: RemapIssue[])
-    constructor(issueOrIssueIterable: RemapIssue | Iterable<RemapIssue>, ...issues: RemapIssue[]) {
+    constructor(issues: Iterable<MorphIssue>)
+    constructor(...issues: MorphIssue[])
+    constructor(issueOrIssueIterable: MorphIssue | Iterable<MorphIssue>, ...issues: MorphIssue[]) {
         if (Symbol.iterator in issueOrIssueIterable) issues = [...issueOrIssueIterable];
         else issues = [issueOrIssueIterable, ...issues];
 

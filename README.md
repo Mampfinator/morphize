@@ -1,11 +1,11 @@
-# Remap
+# Morphize
 
-A (work in progress) [Zod](https://github.com/colinhacks/zod)-inspired object remapping library with static type inference.
+A (work in progress) [Zod](https://github.com/colinhacks/zod)-inspired object transform & remapping library with static type inference.
 
 ## Usage
 
 ```ts
-import { r } from "remap";
+import { r } from "morphize";
 
 const schema = r.object({
     example: r.object({
@@ -33,7 +33,7 @@ const example = schema.map({
 For type inference, simply use `r.infer<TSchema, TInput>`:
 
 ```ts
-import { r } from "remap";
+import { r } from "morphize";
 
 const TestSchema = r.object({
     test: r.to("tested"),
