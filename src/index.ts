@@ -8,12 +8,12 @@ enum RemapType {
     Enum = "enum",
 }
 
-type RemapIssue = {
+export type RemapIssue = {
     path: string[];
     details: string;
 }
 
-class RemapContext {
+export class RemapContext {
     protected issues: Set<RemapIssue> = new Set();
     protected path: string[] = [];
 
@@ -31,7 +31,7 @@ class RemapContext {
 
     public at(key: string): RemapContext {
         const context = new RemapContext();
-        context.issues = new Set(this.issues);
+        context.issues = this.issues;
         context.path = [...this.path, key];
 
         return context;
@@ -76,17 +76,16 @@ export class RemapObject<Shape extends RemapObjectMap> extends Remap<{shape: Sha
     public safeMap<Input extends object>(source: Input): Result<RemapInfer<this, Input>, RemapError> {
         const {context, value} = this._map(source, new RemapContext());
         const issues = context.getIssues();
-        if (issues.size > 0) return err(new RemapError());
+        if (issues.size > 0) return err(RemapError.from(context));
 
         return ok(value as any);
     }
 
     public map<T extends object>(source: T): RemapInfer<this, T> {
-        if (typeof source !== "object") throw new TypeError(`Expected source to be object, got ${typeof source} instead.`);
         const {context, value} = this._map(source, new RemapContext());
         
         const issues = context.getIssues();
-        if (issues.size > 0) throw new RemapError();
+        if (issues.size > 0) throw RemapError.from(context);
 
         return value as any;
     }
@@ -96,6 +95,7 @@ export class RemapObject<Shape extends RemapObjectMap> extends Remap<{shape: Sha
 
         if (typeof source !== "object") {
             context.add(`expected object, received ${typeof source}`);
+            return {context, value: final};
         }
 
         for (const [key, value] of Object.entries(source)) {

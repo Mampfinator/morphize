@@ -61,4 +61,23 @@ describe("Remap Tests", () => {
         });
 
     });
+
+    it("lists issues", () => {
+        const schema = r.object({
+            test: r.object({}).to("tested")
+        });
+
+        const result = schema.safeMap({test: ":)"});
+
+        if (result.isOk()) {
+            throw new Error("Unexpected Ok!");
+        }
+
+        expect(result.error.issues).to.deep.equal([
+            {
+                path: ["test"],
+                details: "expected object, received string"
+            }
+        ]);
+    });
 });
