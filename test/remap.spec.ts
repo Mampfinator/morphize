@@ -80,4 +80,28 @@ describe("Morph Tests", () => {
             }
         ]);
     });
+
+    it("transforms values", () => {
+        const schema = m.object({
+            date: m.transform((input: string) => new Date(input)),
+        });
+
+        const test = schema.map({date: "0"});
+        const control = {date: new Date("0")};
+
+        expectType<typeof control>(test);
+        expect(test).to.deep.equal(control);
+    });
+
+    it ("transforms values in remapped keys", () => {
+        const schema = m.object({
+            started_at: m.transform((input: number) => new Date(input)).to("startedAt")
+        });
+        const test = schema.map({started_at: 0});
+        const control = {startedAt: new Date(0)};
+
+        expectType<typeof control>(test); 
+        expect(test).to.deep.equal(control)
+
+    })
 });

@@ -6,6 +6,7 @@ enum InternalMorphType {
     Object = "object",
     Key = "key",
     Enum = "enum",
+    Transform = "transform"
 }
 
 export type MorphIssue = {
@@ -119,7 +120,9 @@ export class MorphObject<Shape extends MorphObjectMap> extends Morpher<{shape: S
                     // there has to be a better way of doing this. But it's fine for now.
                     const newValue = output instanceof Morpher ? (
                         output instanceof MorphObject ? output._map(value, context.at(key)).value :
-                        output instanceof MorphEnum ? output.map(value) : (() => {throw new Error(`Internal error! Unexpected Morph type at ${context.at(key).getPath().join(".")}`)})()
+                        output instanceof MorphEnum ? output.map(value) : 
+                        output instanceof MorphTransform ? output._map(value) :
+                        (() => {throw new Error(`Internal error! Unexpected Morph type at ${context.at(key).getPath().join(".")}`)})()
                     ) : value; 
 
                     final[newKey] = newValue;
@@ -128,6 +131,10 @@ export class MorphObject<Shape extends MorphObjectMap> extends Morpher<{shape: S
 
                 case InternalMorphType.Enum: {
                     final[key] =  (remap as MorphEnum<any, any>).map(value);
+                }
+
+                case InternalMorphType.Transform: {
+                    final[key] = (remap as MorphTransform<any>)._map(value);
                 }
             }
         }
@@ -193,6 +200,27 @@ export class MorphEnum<
 }
 
 
+export class MorphTransform<TFn extends (arg: any) => any> extends Morpher<{_transform: TFn}> {
+    public static create<TFn extends (arg: any) => any>(transform: TFn): MorphTransform<TFn> {
+        return new MorphTransform<TFn>(transform);
+    }
+
+    constructor(
+        transform: TFn
+    ) {
+        super({_transform: transform}, InternalMorphType.Transform);
+    }
+
+    public _map(input: Parameters<TFn>[0]): ReturnType<TFn> {
+        return this._def._transform(input);
+    }
+
+    public to<To extends string>(to: To): MorphKey<To, this> {
+        return new MorphKey(to, this);
+    }
+}
+
+
 /**
  * Shortcut to access the `Shape` of a `MorphObject<Shape>`.
  */
@@ -209,15 +237,22 @@ type OmitNever<T> = { [K in keyof T as T[K] extends never ? never : K]: T[K] }
 type CopyUnknown<T extends MorphObject<any>, Input extends object> = {
     [P in Exclude<keyof Input, keyof ShapeOf<T>>]: Input[P];
 }
-type MorphObjects<T extends MorphObject<any>, Input extends object> = {
-    [P in Exclude<keyof ShapeOf<T>, keyof CopyUnknown<T, Input>>]: ShapeOf<T>[P] extends MorphObject<infer S> ? TypeOf<MorphObject<S>, Input[P] & object> : never;
+type MorphAll<T extends MorphObject<any>, Input extends object> = {
+    [P in Exclude<keyof ShapeOf<T>, keyof CopyUnknown<T, Input>>]: 
+        ShapeOf<T>[P] extends Morpher<any> ?
+           ShapeOf<T>[P] extends MorphObject<infer S> ? TypeOf<MorphObject<S>, Input[P] & object> : 
+           ShapeOf<T>[P] extends MorphTransform<infer Fn> ? ReturnType<Fn>
+           : never
+        :never;
 }
 
 type MorphKeys<T extends MorphObject<any>, Input extends object> = {
     [P in (ShapeOf<T>[keyof ShapeOf<T>] extends MorphKey<infer U, any> ? U : never)]: _Index<T, P> extends keyof Input ? // check if source index exists on input, otherwise don't evaluate it
         ShapeOf<T>[_Index<T, P>] extends MorphKey<P, infer O> ? 
             O extends Morpher<any> ?
-                O extends MorphObject<infer S> ? TypeOf<MorphObject<S>, Input[_Index<T, P>] & object> : never
+                O extends MorphObject<infer S> ? TypeOf<MorphObject<S>, Input[_Index<T, P>] & object> : 
+                O extends MorphTransform<infer Fn> ? ReturnType<Fn> :
+                never
             : Input[_Index<T, P>]
         : never
     : never;
@@ -225,7 +260,7 @@ type MorphKeys<T extends MorphObject<any>, Input extends object> = {
 
 type TypeOf<T extends MorphObject<any>, Input extends object> = OmitNever<
     CopyUnknown<T, Input> & 
-    MorphObjects<T, Input> &
+    MorphAll<T, Input> &
     MorphKeys<T, Input>
 >;
 
@@ -244,11 +279,16 @@ const rTo = <To extends string>(to: To): MorphKey<To, undefined> => MorphKey.cre
  * Morph enums. Specified enum arrays need to be of the same size.
  */
 const rEnum = <T extends string | number, From extends readonly [T, ...T[]], U extends string, To extends readonly [U, ...U[]]>(from: From, to: To) => MorphEnum.create<From, To>(from, to);
-
+/**
+ * Transform an input value.
+ */
+const rTransform = MorphTransform.create;
 
 export {
     rObject as object,
     rTo as to,
     rEnum as enum,
+    rTransform as transform
 }
+
 export { type TypeOf as infer };
