@@ -1,13 +1,14 @@
 {
-  "name": "remap",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "morphize",
+  "version": "0.1.0",
+  "description": "Schema-based object transform & remapping library.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
     "test": "npx ts-mocha 'test/**/*.spec.ts' --recursive"
   },
   "keywords": [],
-  "author": "",
+  "author": "Sir Eatsalot",
   "license": "ISC",
   "dependencies": {
     "neverthrow": "^6.0.0"
