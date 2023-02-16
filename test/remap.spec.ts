@@ -1,32 +1,46 @@
 import { expect } from "chai";
+import { expectType } from "tsd";
 import { r } from "../src";
 
 describe("Remap Tests", () => {
     it("remaps simple objects", () => {
-        const test = r.object({
+        const schema = r.object({
             test: r.to("tested")
         });
 
-        expect(test.map({test: ":)"})).deep.equal({tested: ":)"});
+        const test = schema.map({ test: ":)" });
+        const control = { tested: ":)" }
+
+        expectType<typeof control>(test);
+        expect(test).deep.equal(control);
     });
 
     it("remaps nested objects", () => {
-        const remap = r.object({
+        const schema = r.object({
             test: r.object({
                 foo: r.to("bar"),
             }).to("tested")
         });
-
-        expect(remap.map({test: {foo: "c:"}})).deep.equal({
+        const test = schema.map({test: {foo: "c:"}});
+        const control = {
             tested: {
                 bar: "c:"
             }
-        });
+        }
+
+        expectType<typeof control>(test);
+
+        expect(test).deep.equal(control);
     });
 
     it("keeps unknown properties", () => {
-        const remap = r.object({});
-        expect(remap.map({tested: "Indeed!"})).deep.equal({tested: "Indeed!"});
+        const schema = r.object({});
+        
+        const test = schema.map({tested: "Indeed!"})
+        const control = {tested: "Indeed!"};
+
+        expectType<typeof control>(test);
+        expect(test).deep.equal(control);
     });
 
     it("remaps enums", () => {
